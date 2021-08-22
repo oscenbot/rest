@@ -3,6 +3,8 @@ package rest
 import (
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type HTTPClient interface {
@@ -27,7 +29,8 @@ func New(config *Config) *Client {
 		rateLimiter: config.Ratelimiter,
 		httpClient: &DefaultHTTPClient{
 			doer: &http.Client{
-				Timeout: time.Second * 5,
+				Timeout:   time.Second * 5,
+				Transport: otelhttp.NewTransport(http.DefaultTransport),
 			},
 			userAgent:     config.UserAgent,
 			authorization: config.Token,
@@ -47,14 +50,14 @@ func (c *Client) request(req *request) (*DiscordResponse, error) {
 			return data, nil
 		}
 	}
-  
+
 	var resp *DiscordResponse
 	var err error
 	if c.rateLimiter != nil {
 		resp, err = c.rateLimiter.Request(c.httpClient, req)
 	} else {
 		resp, err = c.httpClient.Request(req)
-  }
+	}
 
 	if req.method == "GET" && c.cache != nil {
 		c.cache.Put(req.path, resp)
